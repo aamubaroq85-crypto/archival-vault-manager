@@ -12,12 +12,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING ---
+# --- CUSTOM PROFESSIONAL STYLING (HIGH CONTRAST) ---
 st.markdown("""
     <style>
     .main {
-        background-color: #0e1117;
-        color: #c9d1d9;
+        background-color: #0b0f19;
+        color: #ffffff;
     }
     .stMetric {
         background-color: #161b22;
@@ -25,8 +25,19 @@ st.markdown("""
         border-radius: 8px;
         border: 1px solid #30363d;
     }
+    .stMetric label {
+        color: #8b949e !important;
+        font-size: 0.9em !important;
+    }
+    .stMetric [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
     h1, h2, h3 {
-        color: #58a6ff !important;
+        color: #79c0ff !important;
+    }
+    p, span, label, .streamlit-expanderHeader {
+        color: #f0f6fc !important;
     }
     .brand-footer {
         text-align: center;
