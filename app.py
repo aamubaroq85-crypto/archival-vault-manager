@@ -12,13 +12,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (FORCED FULL DARK MODE) ---
+# --- CUSTOM PROFESSIONAL STYLING (FULL DARK MODE + SIDEBAR FIX) ---
 st.markdown("""
     <style>
-    /* Paksa seluruh aplikasi, header, dan kontainer utama menjadi gelap total */
-    .stApp, .main, [data-testid="stHeader"] {
+    /* Paksa seluruh aplikasi, header, kontainer utama, dan sidebar menjadi gelap total */
+    .stApp, .main, [data-testid="stHeader"], [data-testid="stSidebar"] {
         background-color: #0b0f19 !important;
         color: #ffffff !important;
+    }
+    /* Pastikan seluruh teks dan label di dalam sidebar menjadi terang */
+    [data-testid="stSidebar"] * {
+        color: #f0f6fc !important;
     }
     .stMetric {
         background-color: #161b22;
