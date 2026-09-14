@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (FULL DARK MODE + SIDEBAR FIX) ---
+# --- CUSTOM PROFESSIONAL STYLING (FULL DARK MODE + SELECTBOX FIX) ---
 st.markdown("""
     <style>
     /* Paksa seluruh aplikasi, header, kontainer utama, dan sidebar menjadi gelap total */
@@ -23,6 +23,20 @@ st.markdown("""
     /* Pastikan seluruh teks dan label di dalam sidebar menjadi terang */
     [data-testid="stSidebar"] * {
         color: #f0f6fc !important;
+    }
+    /* Perbaikan kontras untuk kotak Selectbox asset symbol */
+    div[data-baseweb="select"] > div {
+        background-color: #161b22 !important;
+        color: #ffffff !important;
+        border: 1px solid #30363d !important;
+    }
+    div[data-baseweb="select"] span {
+        color: #ffffff !important;
+    }
+    /* Perbaikan warna teks dalam menu popover/dropdown */
+    div[data-baseweb="popover"] div {
+        background-color: #161b22 !important;
+        color: #ffffff !important;
     }
     .stMetric {
         background-color: #161b22;
