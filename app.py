@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (ULTRA HIGH CONTRAST SELECTBOX FIX) ---
+# --- CUSTOM PROFESSIONAL STYLING (FULL DARK MODE FOR ALL INPUTS & BUTTONS) ---
 st.markdown("""
     <style>
     /* Paksa seluruh aplikasi, header, kontainer utama, dan sidebar menjadi gelap total */
@@ -24,14 +24,35 @@ st.markdown("""
     [data-testid="stSidebar"] * {
         color: #f0f6fc !important;
     }
-    /* Berikan latar belakang kontras terang pada kotak selectbox agar teks gelap di dalamnya terbaca jelas */
+    /* Kotak selectbox */
     div[data-baseweb="select"] {
-        background-color: #e6edf3 !important;
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
         border-radius: 6px !important;
     }
     div[data-baseweb="select"] * {
-        color: #1f242c !important;
+        color: #ffffff !important;
+    }
+    /* Kotak Date Input */
+    div[data-baseweb="input"] {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 6px !important;
+    }
+    div[data-baseweb="input"] input {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+    /* Tombol (Buttons) */
+    .stButton > button, div.stFormSubmitButton > button {
+        background-color: #21262d !important;
+        color: #ffffff !important;
+        border: 1px solid #30363d !important;
         font-weight: 600 !important;
+    }
+    .stButton > button:hover, div.stFormSubmitButton > button:hover {
+        background-color: #30363d !important;
+        border-color: #8b949e !important;
     }
     /* Menu dropdown */
     div[data-baseweb="popover"] div, div[data-baseweb="menu"] div {
