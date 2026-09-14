@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (FINAL DATE INPUT TEXT FIX) ---
+# --- CUSTOM PROFESSIONAL STYLING (ABSOLUTE DATE TEXT FIX) ---
 st.markdown("""
     <style>
     /* Paksa seluruh aplikasi dan sidebar menjadi gelap */
@@ -23,21 +23,22 @@ st.markdown("""
     [data-testid="stSidebar"] * {
         color: #f0f6fc !important;
     }
-    /* Kotak Input dan Selectbox secara umum */
+    /* Kotak Input dan Selectbox */
     div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
         background-color: #f0f6fc !important;
         border-color: #30363d !important;
     }
-    /* Paksa teks di dalam kotak Date Input menjadi hitam tebal agar terlihat jelas */
-    div.stDateInput input {
-        color: #1f242c !important;
-        -webkit-text-fill-color: #1f242c !important;
+    /* Paksa seluruh teks, angka, dan tanggal di dalam kotak input menjadi hitam pekat dan tebal */
+    div.stDateInput input, div[data-baseweb="input"] input, input[aria-label] {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         font-weight: 700 !important;
+        opacity: 1 !important;
     }
-    div[data-baseweb="input"] input {
-        color: #1f242c !important;
-        -webkit-text-fill-color: #1f242c !important;
-        font-weight: 700 !important;
+    /* Target tambahan untuk elemen tanggal Streamlit di mobile */
+    div[data-baseweb="input"] *, span[data-baseweb="tag"] {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
     }
     /* Label di atas input form */
     .stTextInput label, .stNumberInput label, .stDateInput label, .stSelectbox label {
