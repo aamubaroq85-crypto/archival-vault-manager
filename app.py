@@ -88,12 +88,6 @@ st.markdown("""
         border-top: 1px solid #30363d;
         padding-top: 15px;
     }
-    .paywall-card {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        padding: 20px;
-        border-radius: 10px;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -175,7 +169,6 @@ if not st.session_state["auth_state"]["logged_in"]:
                     quota_val = 5000 if "Pro" in selected_tier else 50000
                     generated_key = "zf_" + uuid.uuid4().hex[:12]
                     
-                    # Simpan data sementara ke session untuk simulasi pembayaran sukses
                     st.session_state["pending_user"] = {
                         "user": new_user,
                         "pass": new_pass,
@@ -233,23 +226,61 @@ else:
 
 action_mode = st.sidebar.radio("Navigation", nav_options)
 
-# --- 1. VAULT DASHBOARD ---
+# --- 1. ENHANCED VAULT DASHBOARD ---
 if action_mode == "📊 Vault Dashboard":
+    st.subheader("📊 Executive Vault Dashboard & Live Market Metrics")
+    
+    # Filter Simbol & Timeframe Interaktif
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        time_filter = st.selectbox("Rentang Tampilan Data", ["Semua Data Tersedia", "100 Data Terakhir", "500 Data Terakhir"])
+    with col_f2:
+        st.markdown(f"**Simbol Aktif Dipilih:** `{selected_symbol}`")
+
+    # Filter data berdasarkan pilihan
+    df_filtered = df_vault[df_vault["symbol"] == selected_symbol]
+    if len(df_filtered) == 0:
+        df_filtered = df_vault.copy() # Fallback jika simbol belum ada data spesifik
+
+    if "100" in time_filter:
+        df_display = df_filtered.tail(100)
+    elif "500" in time_filter:
+        df_display = df_filtered.tail(500)
+    else:
+        df_display = df_filtered
+
+    # Hitung metrik dinamis
+    latest_price = df_display["price"].iloc[-1] if len(df_display) > 0 else 0
+    prev_price = df_display["price"].iloc[-2] if len(df_display) > 1 else latest_price
+    price_delta = latest_price - prev_price
+    high_price = df_display["price"].max() if len(df_display) > 0 else 0
+    low_price = df_display["price"].min() if len(df_display) > 0 else 0
+    total_vol = df_display["volume"].sum() if len(df_display) > 0 else 0
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Stored Records", f"{len(df_vault):,}")
+        st.metric("Latest Tick Price", f"{latest_price:.5f}", f"{price_delta:.5f}")
     with col2:
-        st.metric("Compression Ratio", "86.5% (Parquet ZSTD)")
+        st.metric("High / Low Range", f"{high_price:.4f}", f"Low: {low_price:.4f}")
     with col3:
-        st.metric("Average Read Latency", "1.1 ms")
+        st.metric("Accumulated Volume", f"{total_vol:,}")
     with col4:
-        st.metric("Vault Status", "🟢 Live & Secure", "100%")
+        st.metric("Storage Compression", "86.5% ZSTD", "🟢 Optimal")
 
-    st.markdown("### 📈 Live Tick Density Stream")
-    st.line_chart(df_vault.set_index("timestamp")["price"])
+    st.markdown("### 📈 Live Price Movement Chart")
+    st.line_chart(df_display.set_index("timestamp")["price"])
 
     st.markdown("### 🗄️ Recent Partition Index Preview")
-    st.dataframe(df_vault.tail(10), use_container_width=True)
+    st.dataframe(df_display.tail(10), use_container_width=True)
+
+    # Tombol Ekspor Cepat dari Dashboard
+    csv_dashboard = df_display.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download Dataset Sesi Ini (CSV)",
+        data=csv_dashboard,
+        file_name=f"vault_dashboard_export_{selected_symbol}.csv",
+        mime="text/csv"
+    )
 
 # --- 2. INGEST TICK STREAM ---
 elif action_mode == "📥 Ingest Tick Stream":
