@@ -12,12 +12,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (HIGH CONTRAST) ---
+# --- CUSTOM PROFESSIONAL STYLING (FORCED FULL DARK MODE) ---
 st.markdown("""
     <style>
-    .main {
-        background-color: #0b0f19;
-        color: #ffffff;
+    /* Paksa seluruh aplikasi, header, dan kontainer utama menjadi gelap total */
+    .stApp, .main, [data-testid="stHeader"] {
+        background-color: #0b0f19 !important;
+        color: #ffffff !important;
     }
     .stMetric {
         background-color: #161b22;
@@ -36,7 +37,7 @@ st.markdown("""
     h1, h2, h3 {
         color: #79c0ff !important;
     }
-    p, span, label, .streamlit-expanderHeader {
+    p, span, label, .streamlit-expanderHeader, div[data-testid="stMarkdownContainer"] {
         color: #f0f6fc !important;
     }
     .brand-footer {
