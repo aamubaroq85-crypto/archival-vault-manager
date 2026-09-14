@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import datetime
 import time
+import hashlib
+import uuid
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -12,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (MOBILE-OPTIMIZED DARK/LIGHT CONTRAST) ---
+# --- CUSTOM PROFESSIONAL STYLING ---
 st.markdown("""
     <style>
     .stApp, .main, [data-testid="stHeader"], [data-testid="stSidebar"] {
@@ -87,42 +89,129 @@ st.markdown("""
         border-top: 1px solid #30363d;
         padding-top: 15px;
     }
+    .pricing-card {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+    }
     </style>
 """, unsafe_allow_html=True)
+
+# --- SESSION STATE INITIALIZATION FOR COMMERCIAL & DATABASE ---
+if "user_db" not in st.session_state:
+    # Akun demo bawaan untuk pengujian tier
+    st.session_state["user_db"] = {
+        "free_user": {"pass": "free123", "tier": "Free Tier", "key": "zf_free_demo_key"},
+        "pro_user": {"pass": "pro123", "tier": "Pro Tier", "key": "zf_pro_99a8bc76d"},
+        "institutional_user": {"pass": "inst123", "tier": "Institutional Tier", "key": "zf_inst_x9988776655"}
+    }
+
+if "auth_state" not in st.session_state:
+    st.session_state["auth_state"] = {"logged_in": False, "username": "", "tier": "Free Tier", "api_key": ""}
+
+if "vault_db" not in st.session_state:
+    np.random.seed(42)
+    timestamps = pd.date_range(start="2026-09-01 09:00:00", periods=600, freq="s")
+    base_price = 1.0850
+    prices = base_price + np.cumsum(np.random.randn(600) * 0.0002)
+    volumes = np.random.randint(100, 5000, size=600)
+    
+    st.session_state["vault_db"] = pd.DataFrame({
+        "timestamp": timestamps,
+        "symbol": "EURUSD",
+        "price": prices,
+        "volume": volumes
+    })
+
+df_vault = st.session_state["vault_db"]
+
+# --- AUTHENTICATION & LOGIN SIDEBAR MODUL ---
+st.sidebar.header("🔐 Portal Akses Komersial")
+
+if not st.session_state["auth_state"]["logged_in"]:
+    auth_mode = st.sidebar.radio("Pilih Opsi", ["🔑 Login Akun", "📝 Registrasi Paket / Upgrade"])
+    
+    if auth_mode == "🔑 Login Akun":
+        with st.sidebar.form("login_form"):
+            username_input = st.text_input("Username")
+            password_input = st.text_input("Password", type="password")
+            login_btn = st.form_submit_button("Masuk Vault")
+            
+            if login_btn:
+                user_record = st.session_state["user_db"].get(username_input)
+                if user_record and user_record["pass"] == password_input:
+                    st.session_state["auth_state"] = {
+                        "logged_in": True,
+                        "username": username_input,
+                        "tier": user_record["tier"],
+                        "api_key": user_record["key"]
+                    }
+                    st.success("Login Berhasil!")
+                    st.rerun()
+                else:
+                    st.error("Username atau Password salah!")
+        
+        st.sidebar.markdown("---")
+        st.sidebar.info("💡 **Akun Demo Cepat:**\n- Free: `free_user` / `free123`\n- Pro: `pro_user` / `pro123`\n- Inst: `institutional_user` / `inst123`")
+
+    else:
+        st.sidebar.subheader("Pilih Paket Komersial")
+        st.sidebar.markdown("""
+        - **Free Tier**: Dashboard dasar & simulasi terbatas.
+        - **Pro Tier ($10/bln)**: Analitik Kuantitatif & Ekspor tanpa batas.
+        - **Institutional Tier ($50/bln)**: Akses API DaaS & Multi-Thread Engine.
+        """)
+        with st.sidebar.form("register_form"):
+            new_user = st.text_input("Buat Username Baru")
+            new_pass = st.text_input("Buat Password Baru", type="password")
+            selected_tier = st.selectbox("Pilih Tier", ["Free Tier", "Pro Tier", "Institutional Tier"])
+            reg_btn = st.form_submit_button("Daftar & Simulasi Bayar 🚀")
+            
+            if reg_btn and new_user:
+                if new_user in st.session_state["user_db"]:
+                    st.sidebar.error("Username sudah terdaftar!")
+                else:
+                    generated_key = "zf_" + uuid.uuid4().hex[:12]
+                    st.session_state["user_db"][new_user] = {
+                        "pass": new_pass,
+                        "tier": selected_tier,
+                        "key": generated_key
+                    }
+                    st.sidebar.success("Registrasi sukses! Silakan login melalui menu Login Akun.")
+
+    st.stop() # Hentikan eksekusi dashboard utama jika belum login
+
+# Jika sudah login, tampilkan panel profil di sidebar
+st.sidebar.success(f"👤 {st.session_state['auth_state']['username']}\n🏷️ Status: **{st.session_state['auth_state']['tier']}**")
+if st.sidebar.button("🚪 Keluar (Logout)"):
+    st.session_state["auth_state"] = {"logged_in": False, "username": "", "tier": "Free Tier", "api_key": ""}
+    st.rerun()
+
+st.sidebar.markdown("---")
 
 # --- HEADER SECTION ---
 st.title("🏛️ Archival Vault Manager")
 st.markdown("**No. 73 | High-Density Tick-by-Tick Quant & Institutional Storage Engine**")
 st.markdown("---")
 
-# --- SIDEBAR CONTROLS ---
+# --- SIDEBAR NAVIGATION ---
+user_tier = st.session_state["auth_state"]["tier"]
 st.sidebar.header("⚙️ Vault Operations")
 selected_symbol = st.sidebar.selectbox("Select Asset Symbol", ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSDT", "COMPOSITE.JK"])
-action_mode = st.sidebar.radio("Navigation", [
-    "📊 Vault Dashboard", 
-    "📥 Ingest Tick Stream", 
-    "🌐 WebSocket Feeder Simulator", 
-    "📈 Advanced Quant Analytics", 
-    "🔍 Historical Backtest Query", 
-    "⚙️ Multi-Thread Parquet Storage"
-])
 
-# --- SESSION STATE INITIALIZATION ---
-if "vault_db" not in st.session_state:
-    np.random.seed(42)
-    timestamps = pd.date_range(start="2026-09-01 09:00:00", periods=600, freq="s")
-    base_price = 1.0850 if "USD" in selected_symbol else (2500.0 if "XAU" in selected_symbol else 6500.0)
-    prices = base_price + np.cumsum(np.random.randn(600) * 0.0002)
-    volumes = np.random.randint(100, 5000, size=600)
-    
-    st.session_state["vault_db"] = pd.DataFrame({
-        "timestamp": timestamps,
-        "symbol": selected_symbol,
-        "price": prices,
-        "volume": volumes
-    })
+nav_options = ["📊 Vault Dashboard", "📥 Ingest Tick Stream", "🌐 WebSocket Feeder Simulator", "🔍 Historical Backtest Query"]
 
-df_vault = st.session_state["vault_db"]
+if user_tier in ["Pro Tier", "Institutional Tier"]:
+    nav_options.insert(3, "📈 Advanced Quant Analytics")
+
+if user_tier == "Institutional Tier":
+    nav_options.append("🔌 DaaS API Endpoint & Multi-Thread Engine")
+else:
+    nav_options.append("⭐ Upgrade ke Institutional / DaaS")
+
+action_mode = st.sidebar.radio("Navigation", nav_options)
 
 # --- 1. VAULT DASHBOARD ---
 if action_mode == "📊 Vault Dashboard":
@@ -208,20 +297,18 @@ elif action_mode == "🌐 WebSocket Feeder Simulator":
         st.success(f"Berhasil mengamankan dan menyinkronkan {stream_count} tick baru ke Vault!")
         st.rerun()
 
-# --- 4. ADVANCED QUANT ANALYTICS ---
+# --- 4. ADVANCED QUANT ANALYTICS (PRO & INSTITUTIONAL) ---
 elif action_mode == "📈 Advanced Quant Analytics":
     st.subheader("Advanced Quantitative & Technical Analytics")
-    st.markdown("Analisis indikator teknis mendalam (SMA, RSI, Volatility, dan MACD) berbasis data historis *tick* vault.")
+    st.markdown("Analisis indikator teknis mendalam (SMA, RSI, Volatilitas, dan MACD) berbasis data historis *tick* vault.")
     
     df_quant = df_vault.copy()
     window_sma = st.slider("Periode Moving Average (SMA)", min_value=5, max_value=50, value=20)
     
-    # Hitung Indikator Teknis
     df_quant["SMA"] = df_quant["price"].rolling(window=window_sma).mean()
     df_quant["Daily_Return"] = df_quant["price"].pct_change()
     df_quant["Volatility"] = df_quant["Daily_Return"].rolling(window=window_sma).std() * np.sqrt(252)
     
-    # Indikator RSI Sederhana
     delta = df_quant["price"].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -263,21 +350,52 @@ elif action_mode == "🔍 Historical Backtest Query":
             mime="text/csv"
         )
 
-# --- 6. MULTI-THREAD PARQUET STORAGE DIAGNOSTICS ---
+# --- 6. DAAS API ENDPOINT & MULTI-THREAD ENGINE (INSTITUTIONAL ONLY) ---
+elif action_mode == "🔌 DaaS API Endpoint & Multi-Thread Engine":
+    st.subheader("🔌 Data-as-a-Service (DaaS) API & Multi-Thread Storage")
+    st.markdown("Akses eksklusif endpoint data mentah dan manajemen partisi kolumnar berskala institusional.")
+    
+    st.info(f"🔑 **Your Active API Key:** `{st.session_state['auth_state']['api_key']}`")
+    st.markdown("Gunakan *API Key* di atas untuk menarik data langsung via skrip Python eksternal:")
+    
+    st.code(f"""
+import requests
+
+url = "https://api.aaroq-tech.com/v1/vault/query"
+headers = {{"Authorization": "Bearer {st.session_state['auth_state']['api_key']}"}}
+params = {{"symbol": "{selected_symbol}", "format": "parquet"}}
+
+response = requests.get(url, headers=headers, params=params)
+print(response.json())
+    """, language="python")
+    
+    st.markdown("### ⚙️ Multi-Thread Cluster Diagnostics")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Active Worker Threads", "16 Threads (Dedicated)")
+        st.metric("ZSTD Compression Rate", "88.2%")
+    with col2:
+        st.metric("SLA Uptime", "99.99%")
+        st.metric("Data Throughput", "1.2 GB/s")
+
+    st.progress(85, text="Cluster Storage Utilization: 8.5 GB / 50.0 GB (17%)")
+
+# --- 7. UPGRADE PAYWALL PROMPT ---
 else:
-    st.subheader("⚙️ Multi-Thread Parquet Storage & Partition Engine")
-    st.markdown("Memantau manajemen partisi kolumnar tingkat lanjut dengan kompresi multi-thread berskala institusional.")
+    st.subheader("⭐ Tingkatkan Paket Langganan Anda")
+    st.markdown("Nikmati fitur penuh tanpa batas untuk mengoptimalkan strategi trading dan analitik kuantitatif Anda.")
     
     col1, col2 = st.columns(2)
     with col1:
-        st.info("Storage Engine: Apache Arrow + Parquet ZSTD Multi-Threading.")
-        st.write("**Active Partition Nodes:**")
-        st.code("zf_vault_storage/symbol=EURUSD/shard_01.parquet\nzf_vault_storage/symbol=BTCUSDT/shard_02.parquet")
+        st.markdown("### 🚀 Pro Tier ($10/bulan)")
+        st.markdown("- Akses Full Advanced Quant Analytics (RSI, Volatility, MACD)\n- Ekspor dataset tanpa batas kuota\n- Prioritas *High-Speed Query*")
+        if st.button("Upgrade ke Pro Tier Sekarang"):
+            st.success("Simulasi pembayaran berhasil! Silakan hubungi admin untuk aktivasi instan atau ubah tier akun.")
     with col2:
-        st.metric("Multi-Thread Workers", "8 Active Threads")
-        st.metric("Buffer Cache Hit Rate", "99.4%")
-    
-    st.progress(68, text="Cluster Storage Utilization: 6.8 GB / 10.0 GB (68%)")
+        st.markdown("### 🏛️ Institutional / DaaS ($50/bulan)")
+        st.markdown("- Akses Dedicated API Key untuk Bot Trading\n- Multi-Thread Storage Engine (16 Threads)\n- Dukungan SLA 99.99%")
+        if st.button("Upgrade ke Institutional Tier"):
+            st.success("Simulasi pembayaran korporat berhasil diproses!")
 
 # --- FOOTER ---
 st.markdown('<div class="brand-footer">Aa Baroq Applied Technologies | Archival Vault Manager (No. 73)</div>', unsafe_allow_html=True)
