@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (ULTRA ROBUST DARK/LIGHT CONTRAST FIX) ---
+# --- CUSTOM PROFESSIONAL STYLING (FINAL DATE INPUT TEXT FIX) ---
 st.markdown("""
     <style>
     /* Paksa seluruh aplikasi dan sidebar menjadi gelap */
@@ -23,11 +23,19 @@ st.markdown("""
     [data-testid="stSidebar"] * {
         color: #f0f6fc !important;
     }
-    /* Kotak Selectbox, Number Input, dan Date Input: Berikan latar terang bersih dengan teks hitam tebal agar sangat kontras dan mudah dibaca */
-    div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, input[aria-label], div.stDateInput input {
+    /* Kotak Input dan Selectbox secara umum */
+    div[data-baseweb="select"] > div, div[data-baseweb="input"] > div {
         background-color: #f0f6fc !important;
-        color: #1f242c !important;
         border-color: #30363d !important;
+    }
+    /* Paksa teks di dalam kotak Date Input menjadi hitam tebal agar terlihat jelas */
+    div.stDateInput input {
+        color: #1f242c !important;
+        -webkit-text-fill-color: #1f242c !important;
+        font-weight: 700 !important;
+    }
+    div[data-baseweb="input"] input {
+        color: #1f242c !important;
         -webkit-text-fill-color: #1f242c !important;
         font-weight: 700 !important;
     }
@@ -52,7 +60,6 @@ st.markdown("""
         background-color: #161b22 !important;
         color: #ffffff !important;
     }
-    /* Perbaikan tampilan kode (st.code) agar kontras di mobile */
     pre, code {
         background-color: #161b22 !important;
         color: #79c0ff !important;
