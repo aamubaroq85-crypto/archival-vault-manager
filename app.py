@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import datetime
 import time
-import hashlib
 import uuid
 
 # --- PAGE CONFIGURATION ---
@@ -89,27 +88,28 @@ st.markdown("""
         border-top: 1px solid #30363d;
         padding-top: 15px;
     }
-    .pricing-card {
+    .paywall-card {
         background-color: #161b22;
         border: 1px solid #30363d;
         padding: 20px;
         border-radius: 10px;
-        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- SESSION STATE INITIALIZATION FOR COMMERCIAL & DATABASE ---
+# --- SESSION STATE INITIALIZATION ---
 if "user_db" not in st.session_state:
-    # Akun demo bawaan untuk pengujian tier
     st.session_state["user_db"] = {
-        "free_user": {"pass": "free123", "tier": "Free Tier", "key": "zf_free_demo_key"},
-        "pro_user": {"pass": "pro123", "tier": "Pro Tier", "key": "zf_pro_99a8bc76d"},
-        "institutional_user": {"pass": "inst123", "tier": "Institutional Tier", "key": "zf_inst_x9988776655"}
+        "free_user": {"pass": "free123", "tier": "Free Tier", "key": "zf_free_demo_key", "quota": 100},
+        "pro_user": {"pass": "pro123", "tier": "Pro Tier", "key": "zf_pro_99a8bc76d", "quota": 5000},
+        "institutional_user": {"pass": "inst123", "tier": "Institutional Tier", "key": "zf_inst_x9988776655", "quota": 50000}
     }
 
 if "auth_state" not in st.session_state:
-    st.session_state["auth_state"] = {"logged_in": False, "username": "", "tier": "Free Tier", "api_key": ""}
+    st.session_state["auth_state"] = {"logged_in": False, "username": "", "tier": "Free Tier", "api_key": "", "quota": 100}
+
+if "checkout_sim" not in st.session_state:
+    st.session_state["checkout_sim"] = None
 
 if "vault_db" not in st.session_state:
     np.random.seed(42)
@@ -127,11 +127,11 @@ if "vault_db" not in st.session_state:
 
 df_vault = st.session_state["vault_db"]
 
-# --- AUTHENTICATION & LOGIN SIDEBAR MODUL ---
+# --- AUTHENTICATION & PAYMENT GATEWAY SIDEBAR ---
 st.sidebar.header("🔐 Portal Akses Komersial")
 
 if not st.session_state["auth_state"]["logged_in"]:
-    auth_mode = st.sidebar.radio("Pilih Opsi", ["🔑 Login Akun", "📝 Registrasi Paket / Upgrade"])
+    auth_mode = st.sidebar.radio("Pilih Opsi", ["🔑 Login Akun", "📝 Registrasi & Pembayaran"])
     
     if auth_mode == "🔑 Login Akun":
         with st.sidebar.form("login_form"):
@@ -146,7 +146,8 @@ if not st.session_state["auth_state"]["logged_in"]:
                         "logged_in": True,
                         "username": username_input,
                         "tier": user_record["tier"],
-                        "api_key": user_record["key"]
+                        "api_key": user_record["key"],
+                        "quota": user_record["quota"]
                     }
                     st.success("Login Berhasil!")
                     st.rerun()
@@ -157,36 +158,56 @@ if not st.session_state["auth_state"]["logged_in"]:
         st.sidebar.info("💡 **Akun Demo Cepat:**\n- Free: `free_user` / `free123`\n- Pro: `pro_user` / `pro123`\n- Inst: `institutional_user` / `inst123`")
 
     else:
-        st.sidebar.subheader("Pilih Paket Komersial")
-        st.sidebar.markdown("""
-        - **Free Tier**: Dashboard dasar & simulasi terbatas.
-        - **Pro Tier ($10/bln)**: Analitik Kuantitatif & Ekspor tanpa batas.
-        - **Institutional Tier ($50/bln)**: Akses API DaaS & Multi-Thread Engine.
-        """)
-        with st.sidebar.form("register_form"):
-            new_user = st.text_input("Buat Username Baru")
-            new_pass = st.text_input("Buat Password Baru", type="password")
-            selected_tier = st.selectbox("Pilih Tier", ["Free Tier", "Pro Tier", "Institutional Tier"])
-            reg_btn = st.form_submit_button("Daftar & Simulasi Bayar 🚀")
+        st.sidebar.subheader("Pilih Paket & Checkout")
+        selected_tier = st.sidebar.selectbox("Pilih Tier Langganan", ["Pro Tier ($10/bln)", "Institutional Tier ($50/bln)"])
+        
+        with st.sidebar.form("reg_pay_form"):
+            new_user = st.text_input("Username Baru")
+            new_pass = st.text_input("Password Baru", type="password")
+            pay_method = st.selectbox("Metode Pembayaran (Simulasi)", ["Midtrans (QRIS / VA)", "Stripe (Credit Card)", "PayPal"])
+            checkout_btn = st.form_submit_button("Lanjut ke Pembayaran 💳")
             
-            if reg_btn and new_user:
+            if checkout_btn and new_user:
                 if new_user in st.session_state["user_db"]:
                     st.sidebar.error("Username sudah terdaftar!")
                 else:
+                    tier_name = "Pro Tier" if "Pro" in selected_tier else "Institutional Tier"
+                    quota_val = 5000 if "Pro" in selected_tier else 50000
                     generated_key = "zf_" + uuid.uuid4().hex[:12]
-                    st.session_state["user_db"][new_user] = {
+                    
+                    # Simpan data sementara ke session untuk simulasi pembayaran sukses
+                    st.session_state["pending_user"] = {
+                        "user": new_user,
                         "pass": new_pass,
-                        "tier": selected_tier,
-                        "key": generated_key
+                        "tier": tier_name,
+                        "key": generated_key,
+                        "quota": quota_val,
+                        "method": pay_method
                     }
-                    st.sidebar.success("Registrasi sukses! Silakan login melalui menu Login Akun.")
+                    st.session_state["checkout_sim"] = True
 
-    st.stop() # Hentikan eksekusi dashboard utama jika belum login
+        if st.session_state["checkout_sim"]:
+            st.sidebar.markdown("---")
+            st.sidebar.warning("⚡ **Simulasi Payment Gateway Aktif**")
+            st.sidebar.write(f"Metode: {st.session_state['pending_user']['method']}")
+            if st.sidebar.button("Simulasikan Pembayaran Sukses ✅"):
+                p_data = st.session_state["pending_user"]
+                st.session_state["user_db"][p_data["user"]] = {
+                    "pass": p_data["pass"],
+                    "tier": p_data["tier"],
+                    "key": p_data["key"],
+                    "quota": p_data["quota"]
+                }
+                st.session_state["checkout_sim"] = None
+                st.sidebar.success("Pembayaran Berhasil! Akun Anda telah aktif. Silakan login.")
 
-# Jika sudah login, tampilkan panel profil di sidebar
-st.sidebar.success(f"👤 {st.session_state['auth_state']['username']}\n🏷️ Status: **{st.session_state['auth_state']['tier']}**")
+    st.stop()
+
+# Panel Profil Pengguna Aktif di Sidebar
+user_tier = st.session_state['auth_state']['tier']
+st.sidebar.success(f"👤 {st.session_state['auth_state']['username']}\n🏷️ Status: **{user_tier}**")
 if st.sidebar.button("🚪 Keluar (Logout)"):
-    st.session_state["auth_state"] = {"logged_in": False, "username": "", "tier": "Free Tier", "api_key": ""}
+    st.session_state["auth_state"] = {"logged_in": False, "username": "", "tier": "Free Tier", "api_key": "", "quota": 100}
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -197,7 +218,6 @@ st.markdown("**No. 73 | High-Density Tick-by-Tick Quant & Institutional Storage 
 st.markdown("---")
 
 # --- SIDEBAR NAVIGATION ---
-user_tier = st.session_state["auth_state"]["tier"]
 st.sidebar.header("⚙️ Vault Operations")
 selected_symbol = st.sidebar.selectbox("Select Asset Symbol", ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSDT", "COMPOSITE.JK"])
 
@@ -207,9 +227,9 @@ if user_tier in ["Pro Tier", "Institutional Tier"]:
     nav_options.insert(3, "📈 Advanced Quant Analytics")
 
 if user_tier == "Institutional Tier":
-    nav_options.append("🔌 DaaS API Endpoint & Multi-Thread Engine")
+    nav_options.append("🔌 DaaS API Endpoint & API Key Manager")
 else:
-    nav_options.append("⭐ Upgrade ke Institutional / DaaS")
+    nav_options.append("⭐ Upgrade Paket Langganan")
 
 action_mode = st.sidebar.radio("Navigation", nav_options)
 
@@ -297,7 +317,7 @@ elif action_mode == "🌐 WebSocket Feeder Simulator":
         st.success(f"Berhasil mengamankan dan menyinkronkan {stream_count} tick baru ke Vault!")
         st.rerun()
 
-# --- 4. ADVANCED QUANT ANALYTICS (PRO & INSTITUTIONAL) ---
+# --- 4. ADVANCED QUANT ANALYTICS ---
 elif action_mode == "📈 Advanced Quant Analytics":
     st.subheader("Advanced Quantitative & Technical Analytics")
     st.markdown("Analisis indikator teknis mendalam (SMA, RSI, Volatilitas, dan MACD) berbasis data historis *tick* vault.")
@@ -350,52 +370,64 @@ elif action_mode == "🔍 Historical Backtest Query":
             mime="text/csv"
         )
 
-# --- 6. DAAS API ENDPOINT & MULTI-THREAD ENGINE (INSTITUTIONAL ONLY) ---
-elif action_mode == "🔌 DaaS API Endpoint & Multi-Thread Engine":
-    st.subheader("🔌 Data-as-a-Service (DaaS) API & Multi-Thread Storage")
-    st.markdown("Akses eksklusif endpoint data mentah dan manajemen partisi kolumnar berskala institusional.")
+# --- 6. DAAS API ENDPOINT & API KEY MANAGER ---
+elif action_mode == "🔌 DaaS API Endpoint & API Key Manager":
+    st.subheader("🔌 DaaS API Endpoint & Advanced Key Manager")
+    st.markdown("Kelola kunci akses API, pantau kuota pemanfaatan bulanan, dan integrasikan data *tick* langsung ke sistem eksternal.")
     
-    st.info(f"🔑 **Your Active API Key:** `{st.session_state['auth_state']['api_key']}`")
-    st.markdown("Gunakan *API Key* di atas untuk menarik data langsung via skrip Python eksternal:")
+    current_key = st.session_state['auth_state']['api_key']
     
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 🔑 API Key Credentials")
+        st.code(current_key, language="text")
+        if st.button("🔄 Regenerate API Key Baru"):
+            new_generated = "zf_inst_" + uuid.uuid4().hex[:12]
+            st.session_state['auth_state']['api_key'] = new_generated
+            uname = st.session_state['auth_state']['username']
+            if uname in st.session_state['user_db']:
+                st.session_state['user_db'][uname]['key'] = new_generated
+            st.success("API Key berhasil diperbarui!")
+            st.rerun()
+    with col2:
+        st.markdown("### 📊 Quota & Usage Meter")
+        st.metric("Sisa Kuota Request API", f"{st.session_state['auth_state']['quota']:,} Calls")
+        st.progress(25, text="Monthly Quota Usage: 25% Used")
+
+    st.markdown("### 🐍 Contoh Skrip Akses Python DaaS")
     st.code(f"""
 import requests
 
 url = "https://api.aaroq-tech.com/v1/vault/query"
-headers = {{"Authorization": "Bearer {st.session_state['auth_state']['api_key']}"}}
+headers = {{"Authorization": "Bearer {current_key}"}}
 params = {{"symbol": "{selected_symbol}", "format": "parquet"}}
 
 response = requests.get(url, headers=headers, params=params)
 print(response.json())
     """, language="python")
-    
-    st.markdown("### ⚙️ Multi-Thread Cluster Diagnostics")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Active Worker Threads", "16 Threads (Dedicated)")
-        st.metric("ZSTD Compression Rate", "88.2%")
-    with col2:
-        st.metric("SLA Uptime", "99.99%")
-        st.metric("Data Throughput", "1.2 GB/s")
-
-    st.progress(85, text="Cluster Storage Utilization: 8.5 GB / 50.0 GB (17%)")
 
 # --- 7. UPGRADE PAYWALL PROMPT ---
 else:
     st.subheader("⭐ Tingkatkan Paket Langganan Anda")
-    st.markdown("Nikmati fitur penuh tanpa batas untuk mengoptimalkan strategi trading dan analitik kuantitatif Anda.")
+    st.markdown("Pilih paket komersial untuk membuka fitur-fitur analisis kuantitatif dan integrasi API tingkat lanjut.")
     
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("### 🚀 Pro Tier ($10/bulan)")
         st.markdown("- Akses Full Advanced Quant Analytics (RSI, Volatility, MACD)\n- Ekspor dataset tanpa batas kuota\n- Prioritas *High-Speed Query*")
-        if st.button("Upgrade ke Pro Tier Sekarang"):
-            st.success("Simulasi pembayaran berhasil! Silakan hubungi admin untuk aktivasi instan atau ubah tier akun.")
+        if st.button("Pilih Pro Tier (Bayar via Midtrans/Stripe)"):
+            st.session_state['auth_state']['tier'] = "Pro Tier"
+            st.session_state['auth_state']['quota'] = 5000
+            st.success("Selamat! Akun Anda berhasil ditingkatkan ke Pro Tier.")
+            st.rerun()
     with col2:
         st.markdown("### 🏛️ Institutional / DaaS ($50/bulan)")
-        st.markdown("- Akses Dedicated API Key untuk Bot Trading\n- Multi-Thread Storage Engine (16 Threads)\n- Dukungan SLA 99.99%")
-        if st.button("Upgrade ke Institutional Tier"):
-            st.success("Simulasi pembayaran korporat berhasil diproses!")
+        st.markdown("- Akses Dedicated API Key untuk Bot Trading\n- Multi-Thread Storage Engine (16 Threads)\n- Kuota API hingga 50,000 *calls*")
+        if st.button("Pilih Institutional Tier (Korporat)"):
+            st.session_state['auth_state']['tier'] = "Institutional Tier"
+            st.session_state['auth_state']['quota'] = 50000
+            st.success("Selamat! Akun Anda berhasil ditingkatkan ke Institutional Tier.")
+            st.rerun()
 
 # --- FOOTER ---
 st.markdown('<div class="brand-footer">Aa Baroq Applied Technologies | Archival Vault Manager (No. 73)</div>', unsafe_allow_html=True)
