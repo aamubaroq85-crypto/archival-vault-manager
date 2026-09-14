@@ -14,6 +14,7 @@ st.set_page_config(
 
 # --- CUSTOM PROFESSIONAL STYLING (ULTRA HIGH CONTRAST SELECTBOX FIX) ---
 st.markdown("""
+
     <style>
     /* Paksa seluruh aplikasi, header, kontainer utama, dan sidebar menjadi gelap total */
     .stApp, .main, [data-testid="stHeader"], [data-testid="stSidebar"] {
@@ -71,8 +72,64 @@ st.markdown("""
         padding-top: 15px;
     }
     </style>
+""", unsafe_allow_html=True)    <style>
+    /* Paksa seluruh aplikasi, header, kontainer utama, dan sidebar menjadi gelap total */
+    .stApp, .main, [data-testid="stHeader"], [data-testid="stSidebar"] {
+        background-color: #0b0f19 !important;
+        color: #ffffff !important;
+    }
+    /* Pastikan seluruh teks dan label di dalam sidebar menjadi terang */
+    [data-testid="stSidebar"] * {
+        color: #f0f6fc !important;
+    }
+    /* Paksa kotak selectbox dan elemen di dalamnya menjadi gelap dengan teks putih terang */
+    div.stSelectbox div[data-baseweb="select"] {
+        background-color: #161b22 !important;
+        color: #ffffff !important;
+        border-color: #30363d !important;
+    }
+    div.stSelectbox div[data-baseweb="select"] * {
+        color: #ffffff !important;
+        background-color: transparent !important;
+    }
+    /* Dropdown menu list popover */
+    div[data-baseweb="popover"] div, div[data-baseweb="menu"] div {
+        background-color: #161b22 !important;
+        color: #ffffff !important;
+    }
+    div[data-baseweb="menu"] ul li div {
+        color: #ffffff !important;
+    }
+    .stMetric {
+        background-color: #161b22;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+    }
+    .stMetric label {
+        color: #8b949e !important;
+        font-size: 0.9em !important;
+    }
+    .stMetric [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    h1, h2, h3 {
+        color: #79c0ff !important;
+    }
+    p, span, label, .streamlit-expanderHeader, div[data-testid="stMarkdownContainer"] {
+        color: #f0f6fc !important;
+    }
+    .brand-footer {
+        text-align: center;
+        color: #8b949e;
+        font-size: 0.85em;
+        margin-top: 50px;
+        border-top: 1px solid #30363d;
+        padding-top: 15px;
+    }
+    </style>
 """, unsafe_allow_html=True)
-
 # --- HEADER SECTION ---
 st.title("🏛️ Archival Vault Manager")
 st.markdown("**No. 73 | High-Density Tick-by-Tick Quant & Institutional Storage Engine**")
