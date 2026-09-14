@@ -12,38 +12,31 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM PROFESSIONAL STYLING (FULL DARK MODE FOR ALL INPUTS & BUTTONS) ---
+# --- CUSTOM PROFESSIONAL STYLING (ULTRA ROBUST DARK/LIGHT CONTRAST FIX) ---
 st.markdown("""
     <style>
-    /* Paksa seluruh aplikasi, header, kontainer utama, dan sidebar menjadi gelap total */
+    /* Paksa seluruh aplikasi dan sidebar menjadi gelap */
     .stApp, .main, [data-testid="stHeader"], [data-testid="stSidebar"] {
         background-color: #0b0f19 !important;
         color: #ffffff !important;
     }
-    /* Pastikan seluruh teks dan label di dalam sidebar menjadi terang */
     [data-testid="stSidebar"] * {
         color: #f0f6fc !important;
     }
-    /* Kotak selectbox */
-    div[data-baseweb="select"] {
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 6px !important;
+    /* Kotak Selectbox, Number Input, dan Date Input: Berikan latar terang bersih dengan teks hitam tebal agar sangat kontras dan mudah dibaca */
+    div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, input[aria-label], div.stDateInput input {
+        background-color: #f0f6fc !important;
+        color: #1f242c !important;
+        border-color: #30363d !important;
+        -webkit-text-fill-color: #1f242c !important;
+        font-weight: 700 !important;
     }
-    div[data-baseweb="select"] * {
-        color: #ffffff !important;
+    /* Label di atas input form */
+    .stTextInput label, .stNumberInput label, .stDateInput label, .stSelectbox label {
+        color: #f0f6fc !important;
+        font-weight: 600 !important;
     }
-    /* Kotak Date Input */
-    div[data-baseweb="input"] {
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 6px !important;
-    }
-    div[data-baseweb="input"] input {
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
-    }
-    /* Tombol (Buttons) */
+    /* Tombol */
     .stButton > button, div.stFormSubmitButton > button {
         background-color: #21262d !important;
         color: #ffffff !important;
@@ -54,10 +47,16 @@ st.markdown("""
         background-color: #30363d !important;
         border-color: #8b949e !important;
     }
-    /* Menu dropdown */
+    /* Menu dropdown popover */
     div[data-baseweb="popover"] div, div[data-baseweb="menu"] div {
         background-color: #161b22 !important;
         color: #ffffff !important;
+    }
+    /* Perbaikan tampilan kode (st.code) agar kontras di mobile */
+    pre, code {
+        background-color: #161b22 !important;
+        color: #79c0ff !important;
+        border: 1px solid #30363d !important;
     }
     .stMetric {
         background-color: #161b22;
