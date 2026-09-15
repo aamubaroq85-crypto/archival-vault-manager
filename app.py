@@ -108,6 +108,9 @@ if "auth_state" not in st.session_state:
 if "checkout_sim" not in st.session_state:
     st.session_state["checkout_sim"] = None
 
+if "alert_log" not in st.session_state:
+    st.session_state["alert_log"] = []
+
 if "vault_db" not in st.session_state:
     np.random.seed(42)
     timestamps = pd.date_range(start="2026-09-01 09:00:00", periods=600, freq="s")
@@ -137,6 +140,19 @@ def generate_orderbook(mid_price):
         bids.append({"Bid Price": f"{bid_p:.5f}", "Bid Size": bid_vol})
         asks.append({"Ask Price": f"{ask_p:.5f}", "Ask Size": ask_vol})
     return pd.DataFrame(bids), pd.DataFrame(asks)
+
+# --- HELPER FUNCTION: OHLC RESAMPLER ---
+def compute_ohlc(df, freq_seconds=5):
+    df_temp = df.copy()
+    df_temp.set_index('timestamp', inplace=True)
+    resampled = df_temp['price'].resample(f'{freq_seconds}s').agg(
+        Open='first',
+        High='max',
+        Low='min',
+        Close='last'
+    ).dropna()
+    resampled.reset_index(inplace=True)
+    return resampled
 
 # --- AUTHENTICATION & PAYMENT GATEWAY SIDEBAR ---
 st.sidebar.header("🔐 Portal Akses Komersial")
@@ -237,7 +253,7 @@ col_tel1, col_tel2, col_tel3, col_tel4 = st.columns(4)
 with col_tel1:
     st.metric("Query Latency", f"{lat_ms:.2f} ms", "⚡ Ultra-Fast")
 with col_tel2:
-    st.metric("ZSTD Compression", "88.6% Saved", "🟢 Optimal")
+    st.metric("ZSTD Compression", "88.6% Saved", "🟢 ZSTD L19")
 with col_tel3:
     st.metric("Partition Rows", f"{total_rows:,}", "📊 Active Index")
 with col_tel4:
@@ -249,31 +265,54 @@ st.markdown("---")
 st.sidebar.header("⚙️ Vault Operations")
 selected_symbol = st.sidebar.selectbox("Select Asset Symbol", ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSDT", "COMPOSITE.JK"])
 
-nav_options = ["📊 Vault Dashboard", "📥 Ingest Tick Stream", "🌐 WebSocket Feeder Simulator", "🔍 Historical Backtest Query"]
+nav_options = [
+    "📊 Vault Dashboard",
+    "📥 Ingest Tick Stream",
+    "🌐 WebSocket Feeder Simulator",
+    "🗄️ Vault Partition Inspector"
+]
 
 if user_tier in ["Pro Tier", "Institutional Tier"]:
     nav_options.insert(3, "📈 Advanced Quant Analytics")
 
 if user_tier == "Institutional Tier":
     nav_options.append("🔌 DaaS API Endpoint & API Key Manager")
+    nav_options.append("🔔 Webhook / Telegram Alert Hub")
 else:
     nav_options.append("⭐ Upgrade Paket Langganan")
 
 action_mode = st.sidebar.radio("Navigation", nav_options)
 
-# --- 1. ENHANCED VAULT DASHBOARD ---
+# --- 1. ENHANCED VAULT DASHBOARD (WITH LIVE STREAMING & CANDLESTICK/LINE TOGGLE) ---
 if action_mode == "📊 Vault Dashboard":
     st.subheader("📊 Executive Vault Dashboard & Live Market Metrics")
     
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
+    with col_ctrl1:
         time_filter = st.selectbox("Rentang Tampilan Data", ["Semua Data Tersedia", "100 Data Terakhir", "500 Data Terakhir"])
-    with col_f2:
-        st.markdown(f"**Simbol Aktif Dipilih:** `{selected_symbol}`")
+    with col_ctrl2:
+        chart_mode = st.selectbox("Tipe Grafik Utama", ["Line Chart (Tick)", "Candlestick (OHLC 5s)"])
+    with col_ctrl3:
+        live_stream_toggle = st.toggle("⚡ Aktifkan Live Auto-Tick Stream", value=False)
 
-    df_filtered = df_vault[df_vault["symbol"] == selected_symbol]
+    df_filtered = df_vault[df_vault["symbol"] == selected_symbol].copy()
     if len(df_filtered) == 0:
         df_filtered = df_vault.copy()
+
+    # Live tick background simulation if toggle is ON
+    if live_stream_toggle:
+        last_price = df_filtered["price"].iloc[-1]
+        next_p = last_price + np.random.randn() * 0.00018
+        next_v = np.random.randint(150, 2500)
+        new_row = pd.DataFrame({
+            "timestamp": [datetime.datetime.now()],
+            "symbol": [selected_symbol],
+            "price": [next_p],
+            "volume": [next_v]
+        })
+        st.session_state["vault_db"] = pd.concat([st.session_state["vault_db"], new_row], ignore_index=True)
+        time.sleep(1)
+        st.rerun()
 
     if "100" in time_filter:
         df_display = df_filtered.tail(100)
@@ -299,19 +338,31 @@ if action_mode == "📊 Vault Dashboard":
     with col4:
         st.metric("Storage Status", "ZSTD Block 73", "🟢 Healthy")
 
-    # Live Price Movement Chart & Simulated Level-2 Orderbook
     col_chart, col_ob = st.columns([2.2, 1])
     with col_chart:
-        st.markdown("### 📈 Live Price Movement Chart")
+        st.markdown(f"### 📈 Live Price Movement Chart ({chart_mode})")
         fig_price = go.Figure()
-        fig_price.add_trace(go.Scatter(x=df_display["timestamp"], y=df_display["price"], mode='lines', name='Price', line=dict(color='#79c0ff', width=2)))
+        
+        if "Candlestick" in chart_mode:
+            df_ohlc = compute_ohlc(df_display, freq_seconds=5)
+            fig_price.add_trace(go.Candlestick(
+                x=df_ohlc['timestamp'],
+                open=df_ohlc['Open'],
+                high=df_ohlc['High'],
+                low=df_ohlc['Low'],
+                close=df_ohlc['Close'],
+                name='OHLC'
+            ))
+        else:
+            fig_price.add_trace(go.Scatter(x=df_display["timestamp"], y=df_display["price"], mode='lines', name='Price', line=dict(color='#79c0ff', width=2)))
+
         fig_price.update_layout(
             paper_bgcolor='#0b0f19',
             plot_bgcolor='#161b22',
             font=dict(color='#f0f6fc'),
             xaxis=dict(gridcolor='#30363d', spikemode='across', spikesnap='cursor', showspikes=True),
             yaxis=dict(gridcolor='#30363d', spikemode='across', spikesnap='cursor', showspikes=True),
-            height=360
+            height=380
         )
         st.plotly_chart(fig_price, use_container_width=True)
 
@@ -394,7 +445,7 @@ elif action_mode == "🌐 WebSocket Feeder Simulator":
         last_val = current_prices[-1] if len(current_prices) > 0 else 1.0850
         
         streamed_data = []
-        for i in range(stream_signal_count := stream_count):
+        for i in range(stream_count):
             status_text.text(f"Menerima tick ke-{i+1} dari WebSocket endpoint...")
             last_val += np.random.randn() * 0.0003
             vol_val = np.random.randint(200, 3000)
@@ -414,10 +465,10 @@ elif action_mode == "🌐 WebSocket Feeder Simulator":
         st.success(f"Berhasil mengamankan dan menyinkronkan {stream_count} tick baru ke Vault!")
         st.rerun()
 
-# --- 4. ADVANCED QUANT ANALYTICS (UNIFIED SUBPLOTS + AUTOMATED SIGNALS) ---
+# --- 4. ADVANCED QUANT ANALYTICS + AUTOMATED STRATEGY BACKTEST & EQUITY CURVE ---
 elif action_mode == "📈 Advanced Quant Analytics":
     st.subheader("Advanced Quantitative & Technical Analytics (Unified Subplots)")
-    st.markdown("Analisis multi-panel terkoordinasi (SMA, Bollinger Bands, Volume, RSI dengan level kritis 70/30, serta automated Buy/Sell markers).")
+    st.markdown("Analisis multi-panel terkoordinasi (SMA, Bollinger Bands, Volume, RSI dengan level kritis 70/30, automated Buy/Sell markers, plus Strategy Backtest & PnL Engine).")
     
     df_quant = df_vault.copy()
     window_sma = st.slider("Periode Moving Average & Bollinger Bands (SMA/BB)", min_value=5, max_value=50, value=20)
@@ -428,10 +479,10 @@ elif action_mode == "📈 Advanced Quant Analytics":
     df_quant["BB_upper"] = df_quant["SMA"] + (2 * rolling_std)
     df_quant["BB_lower"] = df_quant["SMA"] - (2 * rolling_std)
     
-    # 2. VWAP (Volume Weighted Average Price)
+    # 2. VWAP
     df_quant["VWAP"] = (df_quant["price"] * df_quant["volume"]).cumsum() / df_quant["volume"].cumsum()
     
-    # 3. RSI (Relative Strength Index)
+    # 3. RSI
     delta = df_quant["price"].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -455,20 +506,16 @@ elif action_mode == "📈 Advanced Quant Analytics":
         )
     )
 
-    # Row 1: Price, BB Upper, BB Lower with shading, SMA, Buy/Sell markers
     fig.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["BB_upper"], mode='lines', name='BB Upper', line=dict(color='#00b4d8', dash='dash')), row=1, col=1)
     fig.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["BB_lower"], mode='lines', name='BB Lower', line=dict(color='#00b4d8', dash='dash'), fill='tonexty', fillcolor='rgba(0, 180, 216, 0.08)'), row=1, col=1)
     fig.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["SMA"], mode='lines', name='SMA', line=dict(color='#ff006e', width=2)), row=1, col=1)
     fig.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["price"], mode='lines', name='Price', line=dict(color='#ffffff', width=1.5)), row=1, col=1)
     
-    # Automated Signal Markers
     fig.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["Buy_Signal"], mode='markers', name='BUY Signal', marker=dict(color='#06d6a0', size=11, symbol='triangle-up')), row=1, col=1)
     fig.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["Sell_Signal"], mode='markers', name='SELL Signal', marker=dict(color='#ef476f', size=11, symbol='triangle-down')), row=1, col=1)
 
-    # Row 2: Volume Histogram
     fig.add_trace(go.Bar(x=df_quant["timestamp"], y=df_quant["volume"], name='Volume', marker_color='#79c0ff', opacity=0.7), row=2, col=1)
 
-    # Row 3: RSI with Overbought (70) and Oversold (30) levels
     fig.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["RSI"], mode='lines', name='RSI', line=dict(color='#06d6a0', width=2)), row=3, col=1)
     fig.add_hline(y=70, line_dash="dash", line_color="#ef476f", row=3, col=1)
     fig.add_hline(y=30, line_dash="dash", line_color="#06d6a0", row=3, col=1)
@@ -482,49 +529,113 @@ elif action_mode == "📈 Advanced Quant Analytics":
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
 
-    # Update Axes Styling
     fig.update_xaxes(gridcolor='#30363d', spikemode='across', spikesnap='cursor', showspikes=True)
     fig.update_yaxes(gridcolor='#30363d')
     fig.update_yaxes(range=[0, 100], row=3, col=1)
 
     st.plotly_chart(fig, use_container_width=True)
 
-# --- 5. HISTORICAL BACKTEST QUERY ---
-elif action_mode == "🔍 Historical Backtest Query":
-    st.subheader("Institutional Backtest Query Engine")
-    st.markdown("Tarik data historis berdensitas tinggi untuk kebutuhan audit dan *backtesting* kuantitatif.")
+    # --- AUTOMATED STRATEGY BACKTEST & PERFORMANCE METRICS ---
+    st.markdown("### 🏆 Automated Quant Strategy Backtest & Performance Metrics")
+    buy_prices = df_quant["Buy_Signal"].dropna().values
+    sell_prices = df_quant["Sell_Signal"].dropna().values
+    
+    num_trades = min(len(buy_prices), len(sell_prices))
+    if num_trades > 0:
+        pnl_per_trade = (sell_prices[:num_trades] - buy_prices[:num_trades]) * 10000
+        net_pnl = np.sum(pnl_per_trade)
+        win_rate = (np.sum(pnl_per_trade > 0) / num_trades) * 100
+        sharpe_ratio = np.mean(pnl_per_trade) / (np.std(pnl_per_trade) + 1e-6) * np.sqrt(252)
+        equity_curve = np.cumsum(pnl_per_trade)
+        max_dd = np.min(equity_curve - np.maximum.accumulate(equity_curve))
+    else:
+        net_pnl = 0.0
+        win_rate = 0.0
+        sharpe_ratio = 0.0
+        equity_curve = np.array([0])
+        max_dd = 0.0
 
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input("Start Date", datetime.date(2026, 9, 1))
-    with col2:
-        end_date = st.date_input("End Date", datetime.date.today())
+    b_col1, b_col2, b_col3, b_col4, b_col5 = st.columns(5)
+    with b_col1:
+        st.metric("Executed Trades", f"{num_trades}")
+    with b_col2:
+        st.metric("Net Profit / Loss (PnL)", f"${net_pnl:,.2f}")
+    with b_col3:
+        st.metric("Win Rate (%)", f"{win_rate:.1f}%")
+    with b_col4:
+        st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
+    with b_col5:
+        st.metric("Max Drawdown (MDD)", f"${max_dd:,.2f}")
 
-    if st.button("Execute High-Speed Query ⚡"):
-        filtered_df = df_vault[(df_vault["timestamp"].dt.date >= start_date) & (df_vault["timestamp"].dt.date <= end_date)]
-        st.success(f"Query completed successfully! Retrieved {len(filtered_df)} records.")
-        st.dataframe(filtered_df, use_container_width=True)
+    # Equity Curve Plot
+    fig_eq = go.Figure()
+    fig_eq.add_trace(go.Scatter(y=equity_curve, mode='lines+markers', name='Equity Curve', line=dict(color='#06d6a0', width=2)))
+    fig_eq.update_layout(
+        title="Simulated Strategy Equity Curve (Cumulative PnL in USD)",
+        paper_bgcolor='#0b0f19',
+        plot_bgcolor='#161b22',
+        font=dict(color='#f0f6fc'),
+        height=260
+    )
+    st.plotly_chart(fig_eq, use_container_width=True)
 
-        col_dl1, col_dl2 = st.columns(2)
-        with col_dl1:
-            csv_data = filtered_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Vault Dataset (CSV)",
-                data=csv_data,
-                file_name=f"vault_export_{selected_symbol}.csv",
-                mime="text/csv"
-            )
-        with col_dl2:
-            pq_buf = io.BytesIO()
-            filtered_df.to_parquet(pq_buf, index=False)
-            st.download_button(
-                label="⚡ Download Vault Dataset (Parquet)",
-                data=pq_buf.getvalue(),
-                file_name=f"vault_export_{selected_symbol}.parquet",
-                mime="application/octet-stream"
-            )
+# --- 5. VAULT PARTITION INSPECTOR & COLUMN-WISE ZSTD DIAGNOSTICS ---
+elif action_mode == "🗄️ Vault Partition Inspector":
+    st.subheader("🗄️ Deep Partition Inspector & Column-Wise ZSTD Diagnostics")
+    st.markdown("Inspeksi blok memori dan efisiensi kompresi kolom per kolom menggunakan Algoritma Zstandard (ZSTD Level 19).")
 
-# --- 6. DAAS API ENDPOINT & API KEY MANAGER ---
+    partition_df = pd.DataFrame({
+        "Column Name": ["timestamp", "symbol", "price", "volume"],
+        "Data Type": ["datetime64[ns]", "category / string", "float64 (8-byte)", "int64 (8-byte)"],
+        "Raw Size (KB)": [len(df_vault)*8/1024, len(df_vault)*4/1024, len(df_vault)*8/1024, len(df_vault)*8/1024],
+        "ZSTD Compressed (KB)": [len(df_vault)*1.2/1024, len(df_vault)*0.3/1024, len(df_vault)*0.9/1024, len(df_vault)*0.8/1024],
+        "Compression Ratio": ["85.0% Saved", "92.5% Saved", "88.7% Saved", "90.0% Saved"],
+        "Storage State": ["Hot Storage (NVMe)", "Hot Storage (NVMe)", "Hot Storage (NVMe)", "Hot Storage (NVMe)"]
+    })
+    st.dataframe(partition_df, use_container_width=True, hide_index=True)
+
+    st.markdown("### 💾 Storage Partition Status Summary")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Active Partitions", "Block No. 73", "🟢 Online")
+    with c2:
+        st.metric("Total Vault Compression", "88.6%", "ZSTD L19 Active")
+    with c3:
+        st.metric("Retention Policy", "365 Days Rolling", "Audit Ready")
+
+# --- 6. WEBHOOK / TELEGRAM ALERT HUB ---
+elif action_mode == "🔔 Webhook / Telegram Alert Hub":
+    st.subheader("🔔 Webhook / Telegram / Discord Alert Dispatcher Preview")
+    st.markdown("Konfigurasi endpoint webhook kuantitatif untuk mengirim sinyal `BUY / SELL` otomatis ke bot Telegram, Discord, atau sistem eksternal.")
+
+    with st.form("alert_config_form"):
+        webhook_url = st.text_input("Webhook Endpoint URL", value="https://api.telegram.org/bot<TOKEN>/sendMessage")
+        target_channel = st.text_input("Channel ID / Chat ID", value="@BaroqQuantAlerts")
+        alert_condition = st.selectbox("Trigger Threshold Condition", [
+            "RSI <= 30 (Oversold BUY) & Price <= BB Lower",
+            "RSI >= 70 (Overbought SELL) & Price >= BB Upper",
+            "All Volume Spikes > 4000"
+        ])
+        test_alert_btn = st.form_submit_button("Kirim Sinyal Uji Coba (Test Alert) 🚀")
+        
+        if test_alert_btn:
+            new_log = {
+                "Time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Symbol": selected_symbol,
+                "Signal Type": "TEST_ALERT_DISPATCHED",
+                "Channel": target_channel,
+                "Status": "DELIVERED (200 OK)"
+            }
+            st.session_state["alert_log"].insert(0, new_log)
+            st.success("Test alert berhasil dikirim ke webhook eksternal!")
+
+    st.markdown("### 📜 Real-Time Alert Dispatch Log")
+    if len(st.session_state["alert_log"]) > 0:
+        st.dataframe(pd.DataFrame(st.session_state["alert_log"]), use_container_width=True, hide_index=True)
+    else:
+        st.info("Belum ada alert yang dikirim. Klik 'Kirim Sinyal Uji Coba' atau tunggu sinyal kuantitatif otomatis.")
+
+# --- 7. DAAS API ENDPOINT & API KEY MANAGER ---
 elif action_mode == "🔌 DaaS API Endpoint & API Key Manager":
     st.subheader("🔌 DaaS API Endpoint & Advanced Key Manager")
     st.markdown("Kelola kunci akses API, pantau kuota pemanfaatan bulanan, dan integrasikan data *tick* langsung ke sistem eksternal.")
@@ -559,7 +670,7 @@ response = requests.get(url, headers=headers, params=params)
 print(response.json())"""
     st.code(api_code_str, language="python")
 
-# --- 7. UPGRADE PAYWALL PROMPT ---
+# --- 8. UPGRADE PAYWALL PROMPT ---
 else:
     st.subheader("⭐ Tingkatkan Paket Langganan Anda")
     st.markdown("Pilih paket komersial untuk membuka fitur-fitur analisis kuantitatif dan integrasi API tingkat lanjut.")
