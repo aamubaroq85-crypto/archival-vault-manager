@@ -267,8 +267,16 @@ if action_mode == "📊 Vault Dashboard":
         st.metric("Storage Compression", "86.5% ZSTD", "🟢 Optimal")
 
     st.markdown("### 📈 Live Price Movement Chart")
-    fig_price = px.line(df_display, x="timestamp", y="price", template="plotly_dark")
-    fig_price.update_traces(line=dict(color='#79c0ff', width=2))
+    fig_price = go.Figure()
+    fig_price.add_trace(go.Scatter(x=df_display["timestamp"], y=df_display["price"], mode='lines', name='Price', line=dict(color='#79c0ff', width=2)))
+    fig_price.update_layout(
+        paper_bgcolor='#0b0f19',
+        plot_bgcolor='#161b22',
+        font=dict(color='#f0f6fc'),
+        xaxis=dict(gridcolor='#30363d'),
+        yaxis=dict(gridcolor='#30363d'),
+        height=380
+    )
     st.plotly_chart(fig_price, use_container_width=True)
 
     st.markdown("### 🗄️ Recent Partition Index Preview")
@@ -376,30 +384,66 @@ elif action_mode == "📈 Advanced Quant Analytics":
     rs = gain / loss
     df_quant["RSI"] = 100 - (100 / (1 + rs))
     
-    # Chart 1: Price, SMA, Bollinger Bands (Plotly Graph Objects)
+    # Chart 1: Price, SMA, Bollinger Bands with Shading Fill
     fig_bb = go.Figure()
-    fig_bb.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["price"], mode='lines', name='Price', line=dict(color='#ffffff', width=1.5)))
     fig_bb.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["BB_upper"], mode='lines', name='BB Upper', line=dict(color='#00b4d8', dash='dash')))
+    fig_bb.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["BB_lower"], mode='lines', name='BB Lower', line=dict(color='#00b4d8', dash='dash'), fill='tonexty', fillcolor='rgba(0, 180, 216, 0.08)'))
     fig_bb.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["SMA"], mode='lines', name='SMA', line=dict(color='#ff006e', width=2)))
-    fig_bb.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["BB_lower"], mode='lines', name='BB Lower', line=dict(color='#00b4d8', dash='dash')))
-    fig_bb.update_layout(title="Grafik Overlay Harga, SMA, & Bollinger Bands", template="plotly_dark", height=420)
+    fig_bb.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["price"], mode='lines', name='Price', line=dict(color='#ffffff', width=1.5)))
+    fig_bb.update_layout(
+        title="Grafik Overlay Harga, SMA, & Bollinger Bands",
+        paper_bgcolor='#0b0f19',
+        plot_bgcolor='#161b22',
+        font=dict(color='#f0f6fc'),
+        xaxis=dict(gridcolor='#30363d'),
+        yaxis=dict(gridcolor='#30363d'),
+        height=420
+    )
     st.plotly_chart(fig_bb, use_container_width=True)
     
     # Chart 2: Price & VWAP
     fig_vwap = go.Figure()
     fig_vwap.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["price"], mode='lines', name='Price', line=dict(color='#ffffff', width=1.5)))
     fig_vwap.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["VWAP"], mode='lines', name='VWAP', line=dict(color='#ffd166', width=2)))
-    fig_vwap.update_layout(title="Volume Weighted Average Price (VWAP)", template="plotly_dark", height=420)
+    fig_vwap.update_layout(
+        title="Volume Weighted Average Price (VWAP)",
+        paper_bgcolor='#0b0f19',
+        plot_bgcolor='#161b22',
+        font=dict(color='#f0f6fc'),
+        xaxis=dict(gridcolor='#30363d'),
+        yaxis=dict(gridcolor='#30363d'),
+        height=420
+    )
     st.plotly_chart(fig_vwap, use_container_width=True)
     
     col1, col2 = st.columns(2)
     with col1:
-        fig_vol = px.line(df_quant, x="timestamp", y="Volatility", title="Indikator Volatilitas", template="plotly_dark")
-        fig_vol.update_traces(line=dict(color='#ef476f', width=2))
+        fig_vol = go.Figure()
+        fig_vol.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["Volatility"], mode='lines', name='Volatility', line=dict(color='#ef476f', width=2)))
+        fig_vol.update_layout(
+            title="Indikator Volatilitas",
+            paper_bgcolor='#0b0f19',
+            plot_bgcolor='#161b22',
+            font=dict(color='#f0f6fc'),
+            xaxis=dict(gridcolor='#30363d'),
+            yaxis=dict(gridcolor='#30363d'),
+            height=380
+        )
         st.plotly_chart(fig_vol, use_container_width=True)
     with col2:
-        fig_rsi = px.line(df_quant, x="timestamp", y="RSI", title="Relative Strength Index (RSI)", template="plotly_dark")
-        fig_rsi.update_traces(line=dict(color='#06d6a0', width=2))
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(x=df_quant["timestamp"], y=df_quant["RSI"], mode='lines', name='RSI', line=dict(color='#06d6a0', width=2)))
+        fig_rsi.add_hline(y=70, line_dash="dash", line_color="#ef476f", annotation_text="Overbought (70)", annotation_font_color="#ef476f")
+        fig_rsi.add_hline(y=30, line_dash="dash", line_color="#06d6a0", annotation_text="Oversold (30)", annotation_font_color="#06d6a0")
+        fig_rsi.update_layout(
+            title="Relative Strength Index (RSI)",
+            paper_bgcolor='#0b0f19',
+            plot_bgcolor='#161b22',
+            font=dict(color='#f0f6fc'),
+            xaxis=dict(gridcolor='#30363d'),
+            yaxis=dict(range=[0, 100], gridcolor='#30363d'),
+            height=380
+        )
         st.plotly_chart(fig_rsi, use_container_width=True)
 
 # --- 5. HISTORICAL BACKTEST QUERY ---
