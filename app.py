@@ -1,4 +1,3 @@
-safe_allow_html=True)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -451,17 +450,16 @@ elif action_mode == "🔌 DaaS API Endpoint & API Key Manager":
         st.metric("Sisa Kuota Request API", f"{st.session_state['auth_state']['quota']:,} Calls")
         st.progress(25, text="Monthly Quota Usage: 25% Used")
 
-    st.markdown("### 🐍 Contoh Skrip Akses Python DaaS")
-    st.code(f"""
-import requests
+    st.markdown("### 🐍 Contoh Akses Skrip Python DaaS")
+    api_code_str = f"""import requests
 
 url = "https://api.aaroq-tech.com/v1/vault/query"
 headers = {{"Authorization": "Bearer {current_key}"}}
 params = {{"symbol": "{selected_symbol}", "format": "parquet"}}
 
 response = requests.get(url, headers=headers, params=params)
-print(response.json())
-    """, language="python")
+print(response.json())"""
+    st.code(api_code_str, language="python")
 
 # --- 7. UPGRADE PAYWALL PROMPT ---
 else:
