@@ -230,17 +230,15 @@ action_mode = st.sidebar.radio("Navigation", nav_options)
 if action_mode == "📊 Vault Dashboard":
     st.subheader("📊 Executive Vault Dashboard & Live Market Metrics")
     
-    # Filter Simbol & Timeframe Interaktif
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         time_filter = st.selectbox("Rentang Tampilan Data", ["Semua Data Tersedia", "100 Data Terakhir", "500 Data Terakhir"])
     with col_f2:
         st.markdown(f"**Simbol Aktif Dipilih:** `{selected_symbol}`")
 
-    # Filter data berdasarkan pilihan
     df_filtered = df_vault[df_vault["symbol"] == selected_symbol]
     if len(df_filtered) == 0:
-        df_filtered = df_vault.copy() # Fallback jika simbol belum ada data spesifik
+        df_filtered = df_vault.copy()
 
     if "100" in time_filter:
         df_display = df_filtered.tail(100)
@@ -249,7 +247,6 @@ if action_mode == "📊 Vault Dashboard":
     else:
         df_display = df_filtered
 
-    # Hitung metrik dinamis
     latest_price = df_display["price"].iloc[-1] if len(df_display) > 0 else 0
     prev_price = df_display["price"].iloc[-2] if len(df_display) > 1 else latest_price
     price_delta = latest_price - prev_price
@@ -273,7 +270,6 @@ if action_mode == "📊 Vault Dashboard":
     st.markdown("### 🗄️ Recent Partition Index Preview")
     st.dataframe(df_display.tail(10), use_container_width=True)
 
-    # Tombol Ekspor Cepat dari Dashboard
     csv_dashboard = df_display.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Download Dataset Sesi Ini (CSV)",
@@ -351,23 +347,36 @@ elif action_mode == "🌐 WebSocket Feeder Simulator":
 # --- 4. ADVANCED QUANT ANALYTICS ---
 elif action_mode == "📈 Advanced Quant Analytics":
     st.subheader("Advanced Quantitative & Technical Analytics")
-    st.markdown("Analisis indikator teknis mendalam (SMA, RSI, Volatilitas, dan MACD) berbasis data historis *tick* vault.")
+    st.markdown("Analisis indikator teknis mendalam (SMA, VWAP, Bollinger Bands, RSI, dan Volatilitas) berbasis data historis *tick* vault.")
     
     df_quant = df_vault.copy()
-    window_sma = st.slider("Periode Moving Average (SMA)", min_value=5, max_value=50, value=20)
+    window_sma = st.slider("Periode Moving Average & Bollinger Bands (SMA/BB)", min_value=5, max_value=50, value=20)
     
+    # 1. Moving Average & Bollinger Bands
     df_quant["SMA"] = df_quant["price"].rolling(window=window_sma).mean()
+    rolling_std = df_quant["price"].rolling(window=window_sma).std()
+    df_quant["BB_upper"] = df_quant["SMA"] + (2 * rolling_std)
+    df_quant["BB_lower"] = df_quant["SMA"] - (2 * rolling_std)
+    
+    # 2. VWAP (Volume Weighted Average Price)
+    df_quant["VWAP"] = (df_quant["price"] * df_quant["volume"]).cumsum() / df_quant["volume"].cumsum()
+    
+    # 3. Volatility & Returns
     df_quant["Daily_Return"] = df_quant["price"].pct_change()
     df_quant["Volatility"] = df_quant["Daily_Return"].rolling(window=window_sma).std() * np.sqrt(252)
     
+    # 4. RSI (Relative Strength Index)
     delta = df_quant["price"].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df_quant["RSI"] = 100 - (100 / (1 + rs))
     
-    st.markdown("### 📊 Grafik Overlay Harga & Moving Average")
-    st.line_chart(df_quant.set_index("timestamp")[["price", "SMA"]])
+    st.markdown("### 📊 Grafik Overlay Harga, SMA, & Bollinger Bands")
+    st.line_chart(df_quant.set_index("timestamp")[["price", "BB_upper", "SMA", "BB_lower"]])
+    
+    st.markdown("### 🌊 Volume Weighted Average Price (VWAP)")
+    st.line_chart(df_quant.set_index("timestamp")[["price", "VWAP"]])
     
     col1, col2 = st.columns(2)
     with col1:
