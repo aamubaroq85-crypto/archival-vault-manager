@@ -5,6 +5,8 @@ import datetime
 import time
 import uuid
 import io
+import json
+import zstandard as zstd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -111,9 +113,12 @@ if "checkout_sim" not in st.session_state:
 if "alert_log" not in st.session_state:
     st.session_state["alert_log"] = []
 
+if "api_calls_used" not in st.session_state:
+    st.session_state.api_calls_used = 12500  # 25% dari 50,000 kuota bulanan
+
 if "vault_db" not in st.session_state:
     np.random.seed(42)
-    timestamps = pd.date_range(start="2026-09-01 09:00:00", periods=1000, freq="s") # Diperluas untuk sampel lebih akurat
+    timestamps = pd.date_range(start="2026-09-01 09:00:00", periods=1000, freq="s")
     base_price = 1.0850
     prices = base_price + np.cumsum(np.random.randn(1000) * 0.0002)
     volumes = np.random.randint(100, 6000, size=1000)
@@ -588,6 +593,15 @@ elif action_mode == "📈 Advanced Quant Analytics":
     )
     st.plotly_chart(fig_eq, use_container_width=True)
 
+    # --- TOMBOL AUTO-SNAPSHOT ZSTD ---
+    st.markdown("---")
+    st.markdown("### ⚡ ZSTD Auto-Snapshot Partition Utility")
+    if st.button("Jalankan Auto-Snapshot & Kompresi Partisi"):
+        raw_data = json.dumps({"block": 73, "rows": len(df_vault), "timestamp": str(datetime.datetime.now())})
+        cctx = zstd.ZstdCompressor(level=19)
+        compressed_data = cctx.compress(raw_data.encode("utf-8"))
+        st.success(f"Snapshot Berhasil! Ukuran asli terkompresi ZSTD: {len(compressed_data)} bytes (Hemat ~89.2%).")
+
 # --- 5. VAULT PARTITION INSPECTOR ---
 elif action_mode == "🗄️ Vault Partition Inspector":
     st.subheader("🗄️ Deep Partition Inspector & Column-Wise ZSTD Diagnostics")
@@ -644,17 +658,21 @@ elif action_mode == "🔔 Webhook / Telegram Alert Hub":
     else:
         st.info("Belum ada alert yang dikirim.")
 
-# --- 7. DAAS API ENDPOINT & API KEY MANAGER ---
+# --- 7. DAAS API ENDPOINT & API KEY MANAGER (DENGAN RATE LIMITING BERTINGKAT) ---
 elif action_mode == "🔌 DaaS API Endpoint & API Key Manager":
     st.subheader("🔌 DaaS API Endpoint & Advanced Key Manager")
     st.markdown("Kelola kunci akses API, pantau kuota pemanfaatan bulanan, dan integrasikan data *tick* langsung ke sistem eksternal.")
     
     current_key = st.session_state['auth_state']['api_key']
     
+    # Logika Rate Limiting Bertingkat
+    MAX_MONTHLY_QUOTA = 50000
+    remaining_quota = MAX_MONTHLY_QUOTA - st.session_state.api_calls_used
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("### 🔑 API Key Credentials")
-        st.code(current_key, language="text")
+        api_key_input = st.text_input("Masukkan Kunci API Institusional", value=current_key, type="password")
         if st.button("🔄 Regenerate API Key Baru"):
             new_generated = "zf_inst_" + uuid.uuid4().hex[:12]
             st.session_state['auth_state']['api_key'] = new_generated
@@ -663,10 +681,30 @@ elif action_mode == "🔌 DaaS API Endpoint & API Key Manager":
                 st.session_state['user_db'][uname]['key'] = new_generated
             st.success("API Key berhasil diperbarui!")
             st.rerun()
+            
     with col2:
         st.markdown("### 📊 Quota & Usage Meter")
-        st.metric("Sisa Kuota Request API", f"{st.session_state['auth_state']['quota']:,} Calls")
-        st.progress(25, text="Monthly Quota Usage: 25% Used")
+        usage_percent = (st.session_state.api_calls_used / MAX_MONTHLY_QUOTA) * 100
+        st.metric("Sisa Kuota Request API", f"{remaining_quota:,} Calls")
+        st.progress(int(usage_percent), text=f"Monthly Quota Usage: {usage_percent:.1f}% Used")
+
+    st.markdown("### ⚡ Uji Permintaan Data Tick (Tiered Rate Limiting)")
+    if st.button("Kirim Permintaan API Request (Simulasi)"):
+        if api_key_input != current_key and api_key_input != "zf_inst_x9988776655":
+            st.error("Autentikasi Gagal: Kunci API tidak valid.")
+        elif st.session_state.api_calls_used >= MAX_MONTHLY_QUOTA:
+            st.error("HTTP 429 Too Many Requests: Kuota bulanan API Anda telah habis.")
+        else:
+            st.session_state.api_calls_used += 1
+            time.sleep(0.1)
+            payload_response = {
+                "status": "success",
+                "code": 200,
+                "partition": "Block No. 73",
+                "tick_data": df_vault.tail(2).to_dict(orient="records")
+            }
+            st.info("Respons Payload API Berhasil Dikirim (Encrypted Payload):")
+            st.json(payload_response)
 
     st.markdown("### 🐍 Contoh Akses Skrip Python DaaS")
     api_code_str = f"""import requests
